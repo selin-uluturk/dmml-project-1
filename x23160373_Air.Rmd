@@ -1,0 +1,194 @@
+---
+title: "air_dmml"
+output: pdf_document
+date: "2023-11-19"
+editor_options: 
+  chunk_output_type: inline
+---
+```{r}
+library(tidyverse)
+library(ISLR)
+library(ggplot2)
+library(caret)
+library(AppliedPredictiveModeling)
+library(elasticnet)
+library(broom)
+library(glmnet)
+library(MASS)
+library(PerformanceAnalytics)
+library(Matrix)
+library(dplyr)
+library(car)
+library(corrplot)
+library(lubridate)
+library(readxl)
+
+
+
+
+```
+
+
+```{r}
+
+AirQualityUCI <- read_excel("C:/Users/selin/Downloads/AirQualityUCI.xlsx")
+df<- AirQualityUCI
+str(df)
+summary(df)
+
+boxplot(df$`CO(GT)`, main= 'CO(GT)',col = 'blue')
+boxplot(df$`PT08.S1(CO)`, main= 'PT08.S1(CO)', col='orange')
+boxplot(df$`NMHC(GT)`, main= 'NMHC(GT',col = 'pink')
+boxplot(df$`C6H6(GT)`, main= 'C6H6(GT)', col='purple')
+
+ggplot(df, aes(`CO(GT)`)) + geom_histogram(aes(y=..density..),fill='pink',alpha=.5) + geom_density(alpha=.20,color='black')
+ggplot(df, aes(`PT08.S1(CO)`)) + geom_histogram(aes(y=..density..),fill='orange',alpha=.5) + geom_density(alpha=.20,color='black')
+ggplot(df, aes(`C6H6(GT)`)) + geom_histogram(aes(y=..density..),fill='purple',alpha=.5) + geom_density(alpha=.20,color='black')
+ggplot(df, aes(`PT08.S2(NMHC)`)) + geom_histogram(aes(y=..density..),fill='darkblue',alpha=.5) + geom_density(alpha=.20,color='black')
+ggplot(df, aes(`NOx(GT)`)) + geom_histogram(aes(y=..density..),fill='red',alpha=.5) + geom_density(alpha=.20,color='black')
+ggplot(df, aes(`PT08.S3(NOx)`)) + geom_histogram(aes(y=..density..),fill='green',alpha=.5) + geom_density(alpha=.20,color='black')
+ggplot(df, aes(`NO2(GT)`)) + geom_histogram(aes(y=..density..),fill='yellow',alpha=.5) + geom_density(alpha=.20,color='black')
+ggplot(df, aes(`PT08.S4(NO2)`)) + geom_histogram(aes(y=..density..),fill='blue',alpha=.5) + geom_density(alpha=.20,color='black')
+ggplot(df, aes(`PT08.S5(O3)`)) + geom_histogram(aes(y=..density..),fill='darkorange',alpha=.5) + geom_density(alpha=.20,color='black')
+ggplot(df, aes(T)) + geom_histogram(aes(y=..density..),fill='grey',alpha=.5) + geom_density(alpha=.20,color='black')
+ggplot(df, aes(RH)) + geom_histogram(aes(y=..density..),fill='darkgreen',alpha=.5) + geom_density(alpha=.20,color='black')
+ggplot(df, aes(AH)) + geom_histogram(aes(y=..density..),fill='brown',alpha=.5) + geom_density(alpha=.20,color='black')
+
+#Missing Values, Outliers, Date format
+
+sum(is.na(df))# It looks like there are no missing values but in reality (-200) indicates missing values
+#Handling Missing Values
+#filter (df,`CO(GT)`== -200.0)
+df <- df[df$`CO(GT)` != -200.0,]
+df <- df[df$`C6H6(GT)` != -200.0,]
+df <- df[df$`NOx(GT)` != -200.0,]
+df <- df[df$`PT08.S1(CO)` != -200.0,]
+df <- df[df$`NO2(GT)` != -200.0,]
+
+df$`NMHC(GT)`<- NULL# it has more than half (-200) so i dropped it
+
+#Handling Outliers
+
+a<- which(df$`CO(GT)` %in% boxplot.stats(df$`CO(GT)`)$out)
+b<- which(df$`PT08.S1(CO)` %in% boxplot.stats(df$`PT08.S1(CO)`)$out)
+c<- which(df$`NO2(GT)` %in% boxplot.stats(df$`NO2(GT)`)$out)
+d<- which(df$`C6H6(GT)` %in% boxplot.stats(df$`C6H6(GT)`)$out)
+e<- which(df$`PT08.S2(NMHC)` %in% boxplot.stats(df$`PT08.S2(NMHC)`)$out)
+f<- which(df$`NOx(GT)` %in% boxplot.stats(df$`NOx(GT)`)$out)
+g<- which(df$`PT08.S3(NOx)` %in% boxplot.stats(df$`PT08.S3(NOx)`)$out)
+h<- which(df$`PT08.S4(NO2)` %in% boxplot.stats(df$`PT08.S4(NO2)`)$out)
+i<- which(df$`PT08.S5(O3)` %in% boxplot.stats(df$`PT08.S5(O3)`)$out)
+j<- which(df$T %in% boxplot.stats(df$T)$out)
+k<- which(df$RH %in% boxplot.stats(df$RH)$out)
+l<- which(df$AH %in% boxplot.stats(df$AH)$out)
+
+
+# I put the mean values
+df[a,]$`CO(GT)` <- mean(df$`CO(GT)`) 
+df[b,]$`PT08.S1(CO)` <- mean(df$`PT08.S1(CO)`)
+df[c,]$`NO2(GT)` <- mean(df$`NO2(GT)`)
+df[d,]$`C6H6(GT)` <- mean(df$`C6H6(GT)`)
+df[e,]$`PT08.S2(NMHC)` <- mean(df$`PT08.S2(NMHC)`)
+df[f,]$`NOx(GT)` <- mean(df$`NOx(GT)`)
+df[g,]$`PT08.S3(NOx)` <- mean(df$`PT08.S3(NOx)`)
+df[h,]$`PT08.S4(NO2)` <- mean(df$`PT08.S4(NO2)`)
+df[i,]$`PT08.S5(O3)` <- mean(df$`PT08.S5(O3)`)
+df[j,]$T <- mean(df$T)
+df[k,]$RH <- mean(df$RH)
+df[l,]$AH <- mean(df$AH)
+
+# date format
+df$Date <- ymd(df$Date)
+
+set.seed(23160373)
+train_index <- createDataPartition(df$`CO(GT)`, p=.8, list=FALSE, time=1)
+head(train_index)
+train <- df[train_index,]
+test <- df[-train_index,]
+train_x <- train %>% dplyr :: select (-`CO(GT)`)
+train_y <- train$`CO(GT)`
+test_x <- test %>% dplyr :: select (-`CO(GT)`)
+test_y <- test$`CO(GT)`
+
+training<- data.frame(train_x, `CO(GT)`= train_y)
+lm_fit<- lm(`CO.GT.`~., data=training)
+summary(lm_fit)
+
+head(training$CO.GT.)
+head(lm_fit$fitted.values)
+defaultSummary(data.frame(obs=training$CO.GT.,pred=lm_fit$fitted.values))
+
+#Since the parentheses in the column names were causing problems during the modeling phase, I continued by replacing them with periods.
+
+colnames(train_x)[colnames(train_x) == "PT08.S1(CO)"] <- "PT08.S1.CO."
+colnames(train_x)[colnames(train_x) == "C6H6(GT)"] <- "C6H6.GT."
+colnames(train_x)[colnames(train_x) == "PT08.S2(NMHC)"] <- "PT08.S2.NMHC."
+colnames(train_x)[colnames(train_x) == "NOx(GT)"] <- "NOx.GT."
+colnames(train_x)[colnames(train_x) == "PT08.S3(NOx)"] <- "PT08.S3.NOx."
+colnames(train_x)[colnames(train_x) == "NO2(GT)"] <- "NO2.GT."
+colnames(train_x)[colnames(train_x) == "PT08.S4(NO2)"] <- "PT08.S4.NO2."
+colnames(train_x)[colnames(train_x) == "PT08.S5(O3)"] <- "PT08.S5.O3."
+
+colnames(test_x)[colnames(test_x) == "PT08.S1(CO)"] <- "PT08.S1.CO."
+colnames(test_x)[colnames(test_x) == "C6H6(GT)"] <- "C6H6.GT."
+colnames(test_x)[colnames(test_x) == "PT08.S2(NMHC)"] <- "PT08.S2.NMHC."
+colnames(test_x)[colnames(test_x) == "NOx(GT)"] <- "NOx.GT."
+colnames(test_x)[colnames(test_x) == "PT08.S3(NOx)"] <- "PT08.S3.NOx."
+colnames(test_x)[colnames(test_x) == "NO2(GT)"] <- "NO2.GT."
+colnames(test_x)[colnames(test_x) == "PT08.S4(NO2)"] <- "PT08.S4.NO2."
+colnames(test_x)[colnames(test_x) == "PT08.S5(O3)"] <- "PT08.S5.O3."
+
+head(predict(lm_fit,train_x))
+head(lm_fit$fitted.values)
+defaultSummary(data.frame(obs=test_y, pred=predict(lm_fit, test_x)))
+
+#second model
+lm_fit1<- update(lm_fit, . ~ . - RH)
+summary(lm_fit1)
+head(training$CO.GT.)
+head(lm_fit1$fitted.values)
+defaultSummary(data.frame(obs=training$CO.GT.,pred=lm_fit1$fitted.values))
+
+head(predict(lm_fit1,train_x))
+head(lm_fit1$fitted.values)
+defaultSummary(data.frame(obs=test_y, pred=predict(lm_fit1, test_x)))
+
+#third model
+lm_fit2<- update(lm_fit1, . ~ . -PT08.S3.NOx.)
+summary(lm_fit2)
+head(training$CO.GT.)
+head(lm_fit2$fitted.values)
+defaultSummary(data.frame(obs=training$CO.GT.,pred=lm_fit2$fitted.values))
+
+head(predict(lm_fit2,train_x))
+head(lm_fit2$fitted.values)
+defaultSummary(data.frame(obs=test_y, pred=predict(lm_fit2, test_x)))
+
+
+
+
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
